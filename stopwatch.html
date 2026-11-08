@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eternal Time · 스탑워치</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --rose: #ff8fb1; --violet: #c77dff; --gold: #ffd9a0; --ice: #bde0ff;
+    --text: #fff0f6; --muted: rgba(255,240,246,.62);
+    --glass: rgba(255,255,255,.09); --glass-line: rgba(255,255,255,.28);
+    --serif: "Playfair Display", "Gowun Batang", Georgia, serif;
+    --body: "Gowun Batang", "Malgun Gothic", system-ui, serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; color: var(--text); font-family: var(--body); overflow-x: hidden;
+    background:
+      radial-gradient(ellipse at 20% 15%, rgba(199,125,255,.35), transparent 55%),
+      radial-gradient(ellipse at 85% 85%, rgba(255,143,177,.38), transparent 55%),
+      linear-gradient(165deg, #1d0f33 0%, #3a1757 45%, #7a2f6e 80%, #c9627f 100%);
+    background-attachment: fixed;
+  }
+  #bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; display: block; }
+
+  .stage {
+    position: relative; z-index: 1; min-height: 100%; display: grid; place-items: center;
+    padding: 24px 16px; perspective: 1200px;
+  }
+  .card {
+    width: min(100%, 440px); padding: 26px 22px 22px; border-radius: 32px;
+    background: linear-gradient(145deg, rgba(255,255,255,.16), rgba(255,255,255,.05));
+    border: 1px solid var(--glass-line);
+    backdrop-filter: blur(20px) saturate(140%); -webkit-backdrop-filter: blur(20px) saturate(140%);
+    box-shadow: 0 30px 80px rgba(20,0,40,.55), inset 0 1px 0 rgba(255,255,255,.4), 0 0 60px rgba(255,143,177,.18);
+    transform-style: preserve-3d; transition: transform .15s ease-out;
+  }
+  .brand {
+    text-align: center; font-family: var(--serif); font-size: 13px; letter-spacing: .5em;
+    text-transform: uppercase; color: var(--gold); margin: 0 0 14px; transform: translateZ(20px);
+  }
+  .brand::before, .brand::after { content: "✦"; margin: 0 .8em; opacity: .7; }
+
+  .tabs {
+    display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(0,0,0,.2);
+    transform: translateZ(25px); margin-bottom: 22px;
+  }
+  .tab {
+    flex: 1; padding: 10px 0; border: 0; border-radius: 999px; background: transparent;
+    color: var(--muted); font: 700 14px var(--body); cursor: pointer; transition: all .25s;
+  }
+  .tab.active {
+    color: #3a1757; background: linear-gradient(135deg, var(--gold), var(--rose));
+    box-shadow: 0 6px 18px rgba(255,143,177,.45);
+  }
+  .panel { display: none; animation: rise .5s ease; }
+  .panel.active { display: block; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px) translateZ(0); } to { opacity: 1; transform: none; } }
+
+  /* 다이얼 */
+  .dial { position: relative; width: min(72vw, 270px); aspect-ratio: 1; margin: 0 auto 22px; transform: translateZ(45px); }
+  .dial svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
+  .dial .track { fill: rgba(255,255,255,.05); stroke: rgba(255,255,255,.16); stroke-width: 6; }
+  .dial .bar {
+    fill: none; stroke: url(#ringGrad); stroke-width: 6; stroke-linecap: round;
+    stroke-dasharray: 553; stroke-dashoffset: 553; filter: drop-shadow(0 0 8px rgba(255,143,177,.9));
+  }
+  .dial .readout { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+  .time {
+    font-family: var(--serif); font-weight: 500; font-size: clamp(38px, 11.5vw, 52px);
+    font-variant-numeric: lining-nums tabular-nums; letter-spacing: 1px; line-height: 1.1;
+    background: linear-gradient(180deg, #fff, var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: 0 0 30px rgba(255,217,160,.35);
+  }
+  .time small { font-size: .5em; opacity: .8; }
+  .sub { font-size: 13px; color: var(--muted); margin-top: 6px; }
+
+  .btns { display: flex; gap: 10px; transform: translateZ(30px); }
+  button.b {
+    flex: 1; padding: 14px 0; border: 1px solid var(--glass-line); border-radius: 18px; cursor: pointer;
+    background: var(--glass); color: var(--text); font: 700 16px var(--body);
+    transition: transform .12s, box-shadow .2s, opacity .2s;
+  }
+  button.b:hover:not(:disabled) { box-shadow: 0 8px 24px rgba(255,143,177,.3); transform: translateY(-2px); }
+  button.b:active:not(:disabled) { transform: scale(.96); }
+  button.b:disabled { opacity: .35; cursor: default; }
+  button.b.main { border: 0; color: #3a1757; background: linear-gradient(135deg, var(--gold), var(--rose) 60%, var(--violet)); box-shadow: 0 8px 26px rgba(255,143,177,.45); }
+  button.b.main.on { background: linear-gradient(135deg, #ff9aa8, #ff5c8a); color: #fff; }
+
+  .laps { list-style: none; margin: 18px 0 0; padding: 0; max-height: 190px; overflow-y: auto; }
+  .laps li { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; padding: 10px 6px; border-top: 1px solid rgba(255,255,255,.14); font-size: 15px; font-variant-numeric: tabular-nums; }
+  .laps .n { color: var(--muted); }
+  .laps .best { color: #9bffcf; } .laps .worst { color: #ff9aa8; }
+
+  /* 입력 */
+  .tinputs { display: flex; justify-content: center; align-items: center; gap: 6px; margin-bottom: 14px; transform: translateZ(30px); }
+  .tinputs.hide { display: none; }
+  input, select {
+    font: 600 16px var(--body); color: var(--text); background: rgba(0,0,0,.22);
+    border: 1px solid var(--glass-line); border-radius: 14px; padding: 11px 12px; outline: none;
+    color-scheme: dark;
+  }
+  input:focus, select:focus { border-color: var(--rose); box-shadow: 0 0 0 3px rgba(255,143,177,.25); }
+  .tinputs input { width: 74px; text-align: center; font-family: var(--serif); font-size: 22px; padding: 10px 4px; }
+  .tinputs span { color: var(--muted); font-size: 13px; margin-right: 6px; }
+  .chips { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .chips.hide { display: none; }
+  .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--glass-line); background: var(--glass); color: var(--text); font: 600 13px var(--body); cursor: pointer; }
+  .chip:hover { background: rgba(255,255,255,.18); }
+
+  /* 알람 */
+  .now { font-family: var(--serif); font-size: 15px; text-align: center; color: var(--muted); margin: 0 0 14px; }
+  .aform { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; transform: translateZ(25px); }
+  .aform .full { grid-column: 1 / -1; }
+  .aform label.chk { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+  .aform input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--rose); padding: 0; }
+  .alist { list-style: none; margin: 16px 0 0; padding: 0; max-height: 210px; overflow-y: auto; }
+  .alist li { display: flex; align-items: center; gap: 12px; padding: 12px 6px; border-top: 1px solid rgba(255,255,255,.14); }
+  .alist .at { font-family: var(--serif); font-size: 26px; font-variant-numeric: lining-nums tabular-nums; }
+  .alist .al { flex: 1; min-width: 0; font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .alist li.off .at, .alist li.off .al { opacity: .45; }
+  .sw { position: relative; width: 46px; height: 26px; border-radius: 999px; border: 0; background: rgba(255,255,255,.2); cursor: pointer; transition: background .2s; flex: none; }
+  .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .2s; }
+  .sw.on { background: linear-gradient(135deg, var(--rose), var(--violet)); }
+  .sw.on::after { transform: translateX(20px); }
+  .del { border: 0; background: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 4px 6px; }
+  .del:hover { color: #ff9aa8; }
+  .empty { text-align: center; color: var(--muted); font-size: 14px; padding: 18px 0 4px; }
+
+  .hint { text-align: center; color: var(--muted); font-size: 12px; margin: 16px 0 0; }
+
+  /* 알림 모달 */
+  .ring { position: fixed; inset: 0; z-index: 10; display: none; place-items: center; padding: 20px; background: rgba(20,5,35,.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .ring.show { display: grid; }
+  .ring .box {
+    width: min(100%, 360px); text-align: center; padding: 34px 24px 24px; border-radius: 30px;
+    background: linear-gradient(150deg, rgba(255,255,255,.22), rgba(255,255,255,.07));
+    border: 1px solid var(--glass-line); box-shadow: 0 0 80px rgba(255,143,177,.5);
+    animation: pop .5s cubic-bezier(.2,1.4,.4,1);
+  }
+  @keyframes pop { from { transform: scale(.7) rotateX(30deg); opacity: 0; } to { transform: none; opacity: 1; } }
+  .ring .bell { font-size: 50px; display: inline-block; animation: shake .8s infinite; transform-origin: 50% 10%; filter: drop-shadow(0 0 14px rgba(255,217,160,.8)); }
+  @keyframes shake { 0%,100% { transform: rotate(0); } 15% { transform: rotate(16deg); } 30% { transform: rotate(-14deg); } 45% { transform: rotate(10deg); } 60% { transform: rotate(-6deg); } }
+  .ring h2 { font-family: var(--serif); font-size: 44px; font-weight: 500; margin: 8px 0 2px; color: var(--gold); font-variant-numeric: lining-nums; }
+  .ring p { margin: 0 0 22px; color: var(--muted); }
+  .ring .btns { flex-direction: column; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; z-index: 20; transform: translate(-50%, 30px);
+    padding: 12px 20px; border-radius: 999px; background: rgba(40,10,60,.85); border: 1px solid var(--glass-line);
+    font-size: 14px; opacity: 0; pointer-events: none; transition: all .35s; max-width: 90vw; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  /* ===== 모션 ===== */
+  .card { animation: enter 1.4s cubic-bezier(.2,.9,.25,1) both; }
+  @keyframes enter { from { opacity: 0; transform: translateY(60px) rotateX(35deg) scale(.88); } to { opacity: 1; transform: none; } }
+  .brand {
+    background: linear-gradient(100deg, var(--gold) 20%, #fff 45%, var(--rose) 60%, var(--gold) 80%); background-size: 250% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 5s linear infinite;
+  }
+  @keyframes shimmer { to { background-position: -250% 0; } }
+  .time { animation: glow 3.2s ease-in-out infinite; }
+  @keyframes glow { 50% { filter: drop-shadow(0 0 16px rgba(255,217,160,.65)); } }
+  .dial::before {
+    content: ""; position: absolute; inset: -16px; border-radius: 50%; pointer-events: none;
+    border: 1px dashed rgba(255,217,160,.38); animation: spin 45s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  button.b.main { position: relative; overflow: hidden; }
+  button.b.main::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.6) 50%, transparent 70%);
+    transform: translateX(-120%); animation: sheen 3.6s ease-in-out infinite;
+  }
+  @keyframes sheen { 0%, 55% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+  .cf { position: absolute; pointer-events: none; transform: translateZ(70px); animation: bob 5s ease-in-out infinite; filter: drop-shadow(0 6px 10px rgba(80,0,60,.4)); z-index: 2; }
+  .cf svg { width: 100%; height: 100%; animation: spin 22s linear infinite; }
+  .cf.tl { width: 84px; height: 84px; left: -34px; top: -36px; }
+  .cf.tr { width: 62px; height: 62px; right: -24px; top: -26px; animation-delay: -1.5s; }
+  .cf.tr svg { animation-direction: reverse; animation-duration: 16s; }
+  .cf.bl { width: 58px; height: 58px; left: -22px; bottom: -22px; animation-delay: -3s; }
+  .cf.br { width: 90px; height: 90px; right: -34px; bottom: -36px; animation-delay: -2s; }
+  .cf.br svg { animation-duration: 28s; animation-direction: reverse; }
+  .cf.m1 { width: 34px; height: 34px; right: 38px; top: -30px; animation-delay: -.8s; }
+  .cf.m2 { width: 38px; height: 38px; left: 40px; bottom: -28px; animation-delay: -2.4s; }
+  @keyframes bob { 50% { translate: 0 -9px; } }
+  .ring .bell::after { content: ""; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd9a0"/><stop offset=".5" stop-color="#ff8fb1"/><stop offset="1" stop-color="#c77dff"/>
+    </linearGradient>
+    <linearGradient id="petalGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe9f1"/><stop offset="1" stop-color="#ff6f9f"/>
+    </linearGradient>
+    <symbol id="bloom" viewBox="-50 -50 100 100">
+      <g fill="url(#petalGrad)" stroke="rgba(255,255,255,.55)" stroke-width=".8">
+        <ellipse cx="0" cy="-26" rx="14" ry="23"/>
+        <ellipse cx="0" cy="-26" rx="14" ry="23" transform="rotate(72)"/>
+        <ellipse cx="0" cy="-26" rx="14" ry="23" transform="rotate(144)"/>
+        <ellipse cx="0" cy="-26" rx="14" ry="23" transform="rotate(216)"/>
+        <ellipse cx="0" cy="-26" rx="14" ry="23" transform="rotate(288)"/>
+      </g>
+      <circle r="9" fill="#ffd9a0"/><circle r="4" fill="#fff6dc"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="stage">
+  <main class="card" id="card">
+    <div class="cf tl"><svg><use href="#bloom"/></svg></div>
+    <div class="cf tr"><svg><use href="#bloom"/></svg></div>
+    <div class="cf bl"><svg><use href="#bloom"/></svg></div>
+    <div class="cf br"><svg><use href="#bloom"/></svg></div>
+    <div class="cf m1"><svg><use href="#bloom"/></svg></div>
+    <div class="cf m2"><svg><use href="#bloom"/></svg></div>
+    <h1 class="brand">Eternal Time</h1>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="sw" role="tab">스탑워치</button>
+      <button class="tab" data-tab="tm" role="tab">카운트다운</button>
+      <button class="tab" data-tab="al" role="tab">알람</button>
+    </nav>
+
+    <!-- 스탑워치 -->
+    <section class="panel active" id="panel-sw">
+      <div class="dial">
+        <svg viewBox="0 0 200 200"><circle class="track" cx="100" cy="100" r="88"/><circle class="bar" id="sw-bar" cx="100" cy="100" r="88"/></svg>
+        <div class="readout"><div class="time" id="sw-time">00:00<small>.00</small></div><div class="sub" id="sw-sub">준비됐어요</div></div>
+      </div>
+      <div class="btns">
+        <button class="b" id="sw-lap" disabled>랩</button>
+        <button class="b main" id="sw-start">시작</button>
+        <button class="b" id="sw-reset" disabled>초기화</button>
+      </div>
+      <ul class="laps" id="sw-laps"></ul>
+      <p class="hint">Space 시작/정지 · L 랩 · R 초기화</p>
+    </section>
+
+    <!-- 카운트다운 -->
+    <section class="panel" id="panel-tm">
+      <div class="dial">
+        <svg viewBox="0 0 200 200"><circle class="track" cx="100" cy="100" r="88"/><circle class="bar" id="tm-bar" cx="100" cy="100" r="88"/></svg>
+        <div class="readout"><div class="time" id="tm-time">05:00</div><div class="sub" id="tm-sub">시간을 정해 주세요</div></div>
+      </div>
+      <div class="tinputs" id="tm-inputs">
+        <input type="number" id="tm-h" min="0" max="99" value="0" aria-label="시"><span>시</span>
+        <input type="number" id="tm-m" min="0" max="59" value="5" aria-label="분"><span>분</span>
+        <input type="number" id="tm-s" min="0" max="59" value="0" aria-label="초"><span>초</span>
+      </div>
+      <div class="chips" id="tm-chips">
+        <button class="chip" data-m="1">1분</button><button class="chip" data-m="3">3분</button>
+        <button class="chip" data-m="5">5분</button><button class="chip" data-m="10">10분</button>
+        <button class="chip" data-m="25">25분</button>
+      </div>
+      <div class="btns">
+        <button class="b main" id="tm-start">시작</button>
+        <button class="b" id="tm-reset" disabled>초기화</button>
+      </div>
+    </section>
+
+    <!-- 알람 -->
+    <section class="panel" id="panel-al">
+      <p class="now" id="al-now"></p>
+      <div class="aform">
+        <input type="time" id="al-time" value="07:00" aria-label="알람 시간">
+        <select id="al-snooze" aria-label="스누즈 간격">
+          <option value="1">스누즈 1분</option><option value="5" selected>스누즈 5분</option>
+          <option value="10">스누즈 10분</option><option value="15">스누즈 15분</option>
+        </select>
+        <input class="full" type="text" id="al-label" maxlength="30" placeholder="알람 이름 (예: 기상, 약속)">
+        <label class="chk"><input type="checkbox" id="al-repeat"> 매일 반복</label>
+        <button class="b main" id="al-add">알람 추가</button>
+      </div>
+      <ul class="alist" id="al-list"></ul>
+      <p class="hint">알람이 울리려면 이 탭이 열려 있어야 해요</p>
+    </section>
+  </main>
+</div>
+
+<!-- 울림 모달 -->
+<div class="ring" id="ring" role="alertdialog" aria-live="assertive">
+  <div class="box">
+    <div class="bell">🔔</div>
+    <h2 id="ring-title">07:00</h2>
+    <p id="ring-msg">알람</p>
+    <div class="btns">
+      <button class="b main" id="ring-snooze">스누즈 5분</button>
+      <button class="b" id="ring-dismiss">끄기</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ============ 3D 배경 (Three.js) ============ */
+const mouse = { x: 0, y: 0 };
+(function initScene() {
+  if (typeof THREE === 'undefined') return; // 오프라인이면 그라데이션 배경만 사용
+  const canvas = document.getElementById('bg');
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
+  camera.position.z = 9;
+
+  scene.add(new THREE.AmbientLight(0xffd6ec, 0.8));
+  const l1 = new THREE.PointLight(0xff8fb1, 1.3, 40); l1.position.set(-6, 4, 5); scene.add(l1);
+  const l2 = new THREE.PointLight(0xc77dff, 1.2, 40); l2.position.set(6, -3, 4); scene.add(l2);
+
+  // 하트 (뒤에서 천천히 회전)
+  const s = new THREE.Shape();
+  s.moveTo(0.25, 0.25);
+  s.bezierCurveTo(0.25, 0.25, 0.2, 0, 0, 0);
+  s.bezierCurveTo(-0.3, 0, -0.3, 0.35, -0.3, 0.35);
+  s.bezierCurveTo(-0.3, 0.55, -0.15, 0.77, 0.25, 0.95);
+  s.bezierCurveTo(0.6, 0.77, 0.8, 0.55, 0.8, 0.35);
+  s.bezierCurveTo(0.8, 0.35, 0.8, 0, 0.5, 0);
+  s.bezierCurveTo(0.35, 0, 0.25, 0.25, 0.25, 0.25);
+  const hg = new THREE.ExtrudeGeometry(s, { depth: 0.3, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.1, bevelSegments: 8, curveSegments: 32 });
+  hg.rotateZ(Math.PI); hg.center();
+  const heart = new THREE.Mesh(hg, new THREE.MeshStandardMaterial({
+    color: 0xc2417a, emissive: 0x4a0a2a, emissiveIntensity: .45, roughness: .35, metalness: .3, transparent: true, opacity: .6
+  }));
+  heart.scale.setScalar(4.6); heart.position.set(0, 0.2, -4);
+  scene.add(heart);
+
+  // 빛나는 고리(오라)
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(4.4, 0.025, 12, 160),
+    new THREE.MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: .55 }));
+  halo.position.copy(heart.position); halo.rotation.x = 1.15; scene.add(halo);
+  const halo2 = halo.clone(); halo2.scale.setScalar(1.25); halo2.rotation.set(0.5, 0.6, 0); halo2.material = halo.material.clone(); halo2.material.opacity = .3; scene.add(halo2);
+
+  // 꽃잎
+  const petalGeo = new THREE.CircleGeometry(0.22, 18); petalGeo.scale(1, 1.6, 1);
+  const palette = [0xffb3cd, 0xff8fb1, 0xffd0e0, 0xe7b4ff];
+  const petals = [];
+  for (let i = 0; i < 110; i++) {
+    const m = new THREE.Mesh(petalGeo, new THREE.MeshBasicMaterial({ color: palette[i % palette.length], transparent: true, opacity: .75, side: THREE.DoubleSide }));
+    m.position.set((Math.random() - .5) * 22, (Math.random() - .5) * 16, (Math.random() - .5) * 10);
+    m.userData = { v: .006 + Math.random() * .014, sw: Math.random() * 6, sp: .4 + Math.random(), rx: (Math.random() - .5) * .03, rz: (Math.random() - .5) * .03 };
+    m.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+    scene.add(m); petals.push(m);
+  }
+
+  // 반짝이는 별가루
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.25, 'rgba(255,230,190,.8)'); gr.addColorStop(1, 'rgba(255,200,230,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  const N = 320, pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) { pos[i*3] = (Math.random()-.5)*28; pos[i*3+1] = (Math.random()-.5)*18; pos[i*3+2] = (Math.random()-.5)*14; }
+  const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const sparkles = new THREE.Points(pg, new THREE.PointsMaterial({
+    size: .28, map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .9
+  }));
+  scene.add(sparkles);
+
+  // ----- 꽃 (장미 / 벚꽃 / 데이지) -----
+  const palettes = [
+    [0xff4d82, 0xffc2d6], [0xff8fb1, 0xffe3ee], [0xffc4d8, 0xffffff],
+    [0xb865ff, 0xf0d9ff], [0xff9a80, 0xffe0c9], [0xff6fa0, 0xffd1e1]
+  ];
+  const geoCache = {};
+  function flowerPetalGeo(kind, pi) {
+    const key = kind + pi; if (geoCache[key]) return geoCache[key];
+    const [base, tip] = palettes[pi];
+    const len = 1, w = kind === 'daisy' ? 0.12 : kind === 'cherry' ? 0.42 : 0.32;
+    const s = new THREE.Shape();
+    s.moveTo(0, 0);
+    s.bezierCurveTo(w, len * .15, w * 1.1, len * .7, kind === 'cherry' ? w * .4 : 0, len);
+    if (kind === 'cherry') { s.lineTo(0, len * .86); s.lineTo(-w * .4, len); }
+    s.bezierCurveTo(-w * 1.1, len * .7, -w, len * .15, 0, 0);
+    const g = new THREE.ShapeGeometry(s, 10);
+    const p = g.attributes.position, col = new Float32Array(p.count * 3);
+    const c1 = new THREE.Color(base), c2 = new THREE.Color(tip), c = new THREE.Color();
+    for (let i = 0; i < p.count; i++) {
+      const y = p.getY(i) / len;
+      p.setZ(i, y * y * (kind === 'rose' ? .4 : .2));
+      c.copy(c1).lerp(c2, Math.min(1, y * 1.1));
+      col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.computeVertexNormals();
+    return (geoCache[key] = g);
+  }
+  const petalMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, emissive: 0x4a1238, emissiveIntensity: .55 });
+  const centerGeo = new THREE.SphereGeometry(.1, 12, 8);
+  const centerMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0 });
+  const rings = {
+    rose:   [{ n: 5, open: .15, sc: .45 }, { n: 6, open: .4, sc: .7 }, { n: 8, open: .75, sc: .9 }, { n: 10, open: 1.05, sc: 1.05 }],
+    cherry: [{ n: 5, open: .8, sc: 1 }],
+    daisy:  [{ n: 16, open: .55, sc: 1 }, { n: 12, open: .3, sc: .8 }]
+  };
+  function makeFlower(kind, pi) {
+    const g = new THREE.Group(), petals = [];
+    rings[kind].forEach((r, i) => {
+      for (let j = 0; j < r.n; j++) {
+        const pivot = new THREE.Group();
+        pivot.rotation.z = (j / r.n) * Math.PI * 2 + i * .55;
+        pivot.position.z = i * .02;
+        const m = new THREE.Mesh(flowerPetalGeo(kind, pi), petalMat);
+        m.scale.setScalar(r.sc); m.rotation.x = r.open; m.userData.open = r.open;
+        pivot.add(m); g.add(pivot); petals.push(m);
+      }
+    });
+    if (kind !== 'rose') {
+      const ctr = new THREE.Mesh(centerGeo, centerMat);
+      ctr.scale.set(1, 1, kind === 'daisy' ? .5 : .8); if (kind === 'daisy') ctr.scale.multiplyScalar(1.5);
+      g.add(ctr);
+    }
+    g.userData.petals = petals;
+    return g;
+  }
+  const flowers = [];
+  const kinds = ['rose', 'rose', 'cherry', 'cherry', 'daisy'];
+  for (let i = 0; i < 52; i++) {
+    const f = makeFlower(kinds[i % kinds.length], Math.floor(Math.random() * palettes.length));
+    const z = -7 + Math.random() * 10;
+    const spread = 9 + (9 - z) * .35;
+    f.userData.bx = (Math.random() - .5) * spread * 2;
+    f.userData.by = (Math.random() - .5) * spread * 1.1;
+    f.position.set(f.userData.bx, f.userData.by, z);
+    Object.assign(f.userData, {
+      size: .55 + Math.random() * 1.05, delay: Math.random() * 7, ph: Math.random() * 6.28,
+      spin: (Math.random() - .5) * .35, rx: (Math.random() - .5) * 1.0, ry: (Math.random() - .5) * 1.0
+    });
+    f.scale.setScalar(.001);
+    scene.add(f); flowers.push(f);
+  }
+
+  // 클릭하면 꽃잎이 터져 나오는 효과
+  const bursts = [];
+  addEventListener('pointerdown', e => {
+    const v = new THREE.Vector3(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight * 2 - 1), .5).unproject(camera);
+    const dir = v.sub(camera.position).normalize();
+    const origin = camera.position.clone().add(dir.multiplyScalar((3 - camera.position.z) / dir.z));
+    for (let i = 0; i < 22; i++) {
+      const m = new THREE.Mesh(flowerPetalGeo(i % 3 ? 'cherry' : 'rose', Math.floor(Math.random() * palettes.length)), petalMat);
+      m.position.copy(origin); m.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+      const a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * 4;
+      m.userData = { v: new THREE.Vector3(Math.cos(a) * sp, Math.sin(a) * sp + 1.5, Math.random() * 3), life: 0, max: 1.6 + Math.random() * .8, sc: .25 + Math.random() * .25, r: (Math.random() - .5) * 8 };
+      scene.add(m); bursts.push(m);
+    }
+  });
+  let lastT = 0;
+
+  function resize() {
+    const w = innerWidth, h = innerHeight;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  }
+  addEventListener('resize', resize); resize();
+
+  const clock = new THREE.Clock();
+  (function loop() {
+    requestAnimationFrame(loop);
+    const t = clock.getElapsedTime(), dt = Math.min(.05, t - lastT); lastT = t;
+    heart.rotation.y = Math.sin(t * .35) * .9;
+    heart.rotation.x = Math.sin(t * .27) * .12;
+    const beat = 1 + Math.pow(Math.max(0, Math.sin(t * 2.2)), 8) * .06;
+    heart.scale.setScalar(4.6 * beat);
+    halo.rotation.z = t * .15; halo2.rotation.z = -t * .1;
+    petals.forEach(p => {
+      const d = p.userData;
+      p.position.y -= d.v; p.position.x += Math.sin(t * d.sp + d.sw) * .006;
+      p.rotation.x += d.rx; p.rotation.z += d.rz;
+      if (p.position.y < -9) { p.position.y = 9; p.position.x = (Math.random() - .5) * 22; }
+    });
+    flowers.forEach(f => {
+      const d = f.userData, k = Math.min(1, Math.max(0, (t - d.delay) / 2.8));
+      const e = k < 1 ? 1 + 2.70158 * Math.pow(k - 1, 3) + 1.70158 * Math.pow(k - 1, 2) : 1; // 개화(easeOutBack)
+      f.scale.setScalar(d.size * Math.max(.001, e));
+      const open = (.3 + .7 * Math.min(1, e)) * (1 + Math.sin(t * 1.3 + d.ph) * .08);
+      const ps = d.petals; for (let i = 0; i < ps.length; i++) ps[i].rotation.x = ps[i].userData.open * open;
+      f.position.x = d.bx + Math.sin(t * .4 + d.ph * 2) * .3;
+      f.position.y = d.by + Math.sin(t * .6 + d.ph) * .4;
+      f.rotation.z += d.spin * dt;
+      f.rotation.x = d.rx + Math.sin(t * .5 + d.ph) * .25;
+      f.rotation.y = d.ry + Math.cos(t * .45 + d.ph) * .3;
+    });
+    for (let i = bursts.length - 1; i >= 0; i--) {
+      const m = bursts[i], u = m.userData; u.life += dt;
+      u.v.y -= 4 * dt; u.v.multiplyScalar(1 - .8 * dt);
+      m.position.addScaledVector(u.v, dt); m.rotation.x += u.r * dt; m.rotation.z += u.r * dt * .7;
+      const k = u.life / u.max; m.scale.setScalar(u.sc * Math.max(0, k < .15 ? k / .15 : 1 - (k - .15) / .85));
+      if (k >= 1) { scene.remove(m); bursts.splice(i, 1); }
+    }
+    sparkles.rotation.y = t * .015; sparkles.material.opacity = .7 + Math.sin(t * 2) * .2;
+    camera.position.x += (mouse.x * 1.2 - camera.position.x) * .04;
+    camera.position.y += (-mouse.y * .8 - camera.position.y) * .04;
+    camera.lookAt(0, 0, 0);
+    renderer.render(scene, camera);
+  })();
+})();
+
+/* 카드 3D 틸트 */
+(function () {
+  const card = document.getElementById('card');
+  addEventListener('pointermove', e => {
+    mouse.x = e.clientX / innerWidth * 2 - 1; mouse.y = e.clientY / innerHeight * 2 - 1;
+    card.style.transform = `rotateY(${mouse.x * 7}deg) rotateX(${-mouse.y * 6}deg)`;
+  });
+  addEventListener('pointerleave', () => { card.style.transform = ''; });
+})();
+
+/* ============ 공통 ============ */
+const $ = id => document.getElementById(id);
+const pad = (n, l = 2) => String(n).padStart(l, '0');
+const CIRC = 553;
+const setBar = (el, frac) => { el.style.strokeDashoffset = CIRC * (1 - Math.max(0, Math.min(1, frac))); };
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+let toastT;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+/* 탭 */
+let curTab = 'sw';
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
+  curTab = b.dataset.tab;
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === b));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + curTab));
+});
+
+/* ============ 사운드 (WebAudio 차임) ============ */
+let actx, soundTimer;
+function unlockAudio() {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+  } catch {}
+}
+addEventListener('pointerdown', unlockAudio);
+addEventListener('keydown', unlockAudio);
+function chime() {
+  if (!actx) return;
+  [659.25, 783.99, 987.77, 1318.5, 987.77, 1318.5].forEach((f, i) => {
+    const t0 = actx.currentTime + i * .22;
+    const o = actx.createOscillator(), o2 = actx.createOscillator(), g = actx.createGain();
+    o.type = 'sine'; o.frequency.value = f; o2.type = 'triangle'; o2.frequency.value = f * 2;
+    g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(.22, t0 + .02); g.gain.exponentialRampToValueAtTime(.001, t0 + 1.1);
+    o.connect(g); o2.connect(g); g.connect(actx.destination);
+    o.start(t0); o2.start(t0); o.stop(t0 + 1.2); o2.stop(t0 + 1.2);
+  });
+}
+function startSound() { stopSound(); chime(); soundTimer = setInterval(chime, 2400); }
+function stopSound() { clearInterval(soundTimer); soundTimer = null; }
+
+/* ============ 울림 모달 ============ */
+const ringEl = $('ring');
+let ringing = null; const ringQueue = [];
+const baseTitle = document.title; let titleT;
+function fire(item) {
+  if (ringing) { ringQueue.push(item); return; }
+  ringing = item;
+  $('ring-title').textContent = item.title;
+  $('ring-msg').textContent = item.msg;
+  const sn = $('ring-snooze');
+  sn.style.display = item.onSnooze ? '' : 'none';
+  sn.textContent = item.snoozeText || '스누즈';
+  $('ring-dismiss').textContent = item.dismissText || '끄기';
+  ringEl.classList.add('show');
+  startSound();
+  let on = false; clearInterval(titleT);
+  titleT = setInterval(() => { document.title = (on = !on) ? '🔔 ' + item.msg : baseTitle; }, 800);
+}
+function closeRing() {
+  ringEl.classList.remove('show'); stopSound(); clearInterval(titleT); document.title = baseTitle;
+  ringing = null;
+  if (ringQueue.length) setTimeout(() => fire(ringQueue.shift()), 300);
+}
+$('ring-dismiss').onclick = () => { const r = ringing; closeRing(); r && r.onDismiss && r.onDismiss(); };
+$('ring-snooze').onclick = () => { const r = ringing; closeRing(); r && r.onSnooze && r.onSnooze(); };
+
+/* ============ 스탑워치 ============ */
+(function () {
+  const disp = $('sw-time'), sub = $('sw-sub'), bar = $('sw-bar');
+  const startB = $('sw-start'), lapB = $('sw-lap'), resetB = $('sw-reset'), lapsEl = $('sw-laps');
+  let running = false, elapsed = 0, t0 = 0, raf = 0, laps = [], lastTotal = 0;
+  const now = () => elapsed + (running ? performance.now() - t0 : 0);
+  const parts = ms => ({
+    cs: pad(Math.floor(ms / 10) % 100), s: pad(Math.floor(ms / 1000) % 60),
+    m: pad(Math.floor(ms / 60000) % 60), h: Math.floor(ms / 3600000)
+  });
+  const text = ms => { const p = parts(ms); return `${p.h ? pad(p.h) + ':' : ''}${p.m}:${p.s}.${p.cs}`; };
+  function render() {
+    const ms = now(), p = parts(ms);
+    disp.innerHTML = `${p.h ? pad(p.h) + ':' : ''}${p.m}:${p.s}<small>.${p.cs}</small>`;
+    setBar(bar, (ms % 60000) / 60000);
+  }
+  const tick = () => { render(); raf = requestAnimationFrame(tick); };
+  function start() { running = true; t0 = performance.now(); startB.textContent = '정지'; startB.classList.add('on'); lapB.disabled = resetB.disabled = false; sub.textContent = '흐르는 중…'; tick(); }
+  function stop() { elapsed = now(); running = false; cancelAnimationFrame(raf); startB.textContent = '계속'; startB.classList.remove('on'); lapB.disabled = true; sub.textContent = '잠시 멈춤'; render(); }
+  function reset() { running = false; cancelAnimationFrame(raf); elapsed = 0; laps = []; lastTotal = 0; startB.textContent = '시작'; startB.classList.remove('on'); lapB.disabled = resetB.disabled = true; lapsEl.innerHTML = ''; sub.textContent = '준비됐어요'; render(); }
+  function lap() {
+    if (!running) return;
+    const total = now(); laps.push({ split: total - lastTotal, total }); lastTotal = total;
+    const sp = laps.map(l => l.split), best = Math.min(...sp), worst = Math.max(...sp);
+    lapsEl.innerHTML = '';
+    laps.forEach((l, i) => {
+      const li = document.createElement('li');
+      const cls = laps.length > 1 ? (l.split === best ? 'best' : l.split === worst ? 'worst' : '') : '';
+      li.innerHTML = `<span class="n">랩 ${i + 1}</span><span class="${cls}">${text(l.split)}</span><span class="n">${text(l.total)}</span>`;
+      lapsEl.prepend(li);
+    });
+  }
+  startB.onclick = () => running ? stop() : start();
+  lapB.onclick = lap; resetB.onclick = reset;
+  document.addEventListener('keydown', e => {
+    if (e.repeat || curTab !== 'sw' || ringing || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    if (e.code === 'Space') { e.preventDefault(); startB.click(); }
+    else if (e.key.toLowerCase() === 'l') lap();
+    else if (e.key.toLowerCase() === 'r') reset();
+  });
+  render();
+})();
+
+/* ============ 카운트다운 ============ */
+(function () {
+  const disp = $('tm-time'), sub = $('tm-sub'), bar = $('tm-bar');
+  const startB = $('tm-start'), resetB = $('tm-reset'), inputs = $('tm-inputs'), chips = $('tm-chips');
+  const H = $('tm-h'), M = $('tm-m'), S = $('tm-s');
+  let state = 'idle', total = 0, remain = 0, end = 0, raf = 0;
+  const clamp = (el, max) => Math.max(0, Math.min(max, parseInt(el.value) || 0));
+  const inputMs = () => (clamp(H, 99) * 3600 + clamp(M, 59) * 60 + clamp(S, 59)) * 1000;
+  const fmt = ms => {
+    const t = Math.ceil(ms / 1000), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = t % 60;
+    return (h ? pad(h) + ':' : '') + pad(m) + ':' + pad(s);
+  };
+  function render() {
+    const ms = state === 'running' ? Math.max(0, end - performance.now()) : state === 'paused' ? remain : inputMs();
+    disp.textContent = fmt(ms);
+    setBar(bar, state === 'idle' ? 1 : total ? ms / total : 0);
+    return ms;
+  }
+  function tick() {
+    const ms = render();
+    if (ms <= 0) { finish(); return; }
+    raf = requestAnimationFrame(tick);
+  }
+  function setIdle() {
+    state = 'idle'; cancelAnimationFrame(raf);
+    inputs.classList.remove('hide'); chips.classList.remove('hide');
+    startB.textContent = '시작'; startB.classList.remove('on'); resetB.disabled = true;
+    sub.textContent = '시간을 정해 주세요'; render();
+  }
+  function start() {
+    if (state === 'idle') { total = inputMs(); if (!total) { toast('시간을 1초 이상 정해 주세요'); return; } remain = total; }
+    end = performance.now() + remain; state = 'running';
+    inputs.classList.add('hide'); chips.classList.add('hide');
+    startB.textContent = '일시정지'; startB.classList.add('on'); resetB.disabled = false;
+    sub.textContent = '두근두근…'; tick();
+  }
+  function pause() { remain = Math.max(0, end - performance.now()); state = 'paused'; cancelAnimationFrame(raf); startB.textContent = '계속'; startB.classList.remove('on'); sub.textContent = '잠시 멈춤'; render(); }
+  function finish() {
+    setIdle();
+    fire({
+      title: '00:00', msg: '카운트다운이 끝났어요', dismissText: '확인',
+      onSnooze: () => { H.value = 0; M.value = 1; S.value = 0; render(); start(); },
+      snoozeText: '1분 더'
+    });
+  }
+  startB.onclick = () => state === 'running' ? pause() : start();
+  resetB.onclick = setIdle;
+  [H, M, S].forEach(el => el.addEventListener('input', () => { if (state === 'idle') render(); }));
+  chips.querySelectorAll('.chip').forEach(c => c.onclick = () => { H.value = 0; M.value = c.dataset.m; S.value = 0; render(); });
+  render();
+})();
+
+/* ============ 알람 (스누즈 지원) ============ */
+(function () {
+  let alarms = store.get('et_alarms', []);
+  const snoozeSel = $('al-snooze'), list = $('al-list');
+  snoozeSel.value = store.get('et_snooze', '5');
+  snoozeSel.onchange = () => store.set('et_snooze', snoozeSel.value);
+  const save = () => store.set('et_alarms', alarms);
+
+  function render() {
+    list.innerHTML = '';
+    if (!alarms.length) { list.innerHTML = '<li class="empty">아직 알람이 없어요 ✦</li>'; return; }
+    [...alarms].sort((a, b) => a.time.localeCompare(b.time)).forEach(a => {
+      const li = document.createElement('li'); if (!a.on) li.className = 'off';
+      const at = document.createElement('div'); at.className = 'at'; at.textContent = a.time;
+      const al = document.createElement('div'); al.className = 'al';
+      al.textContent = (a.label || '알람') + (a.repeat ? ' · 매일' : '') + (a.snoozeUntil ? ' · 스누즈 중' : '');
+      const sw = document.createElement('button'); sw.className = 'sw' + (a.on ? ' on' : ''); sw.setAttribute('aria-label', '알람 켜기/끄기');
+      sw.onclick = () => { a.on = !a.on; a.snoozeUntil = null; save(); render(); };
+      const del = document.createElement('button'); del.className = 'del'; del.textContent = '✕'; del.setAttribute('aria-label', '삭제');
+      del.onclick = () => { alarms = alarms.filter(x => x.id !== a.id); save(); render(); };
+      li.append(at, al, sw, del); list.append(li);
+    });
+  }
+
+  $('al-add').onclick = () => {
+    const time = $('al-time').value;
+    if (!time) { toast('시간을 선택해 주세요'); return; }
+    alarms.push({ id: Date.now(), time, label: $('al-label').value.trim(), repeat: $('al-repeat').checked, on: true, last: '', snoozeUntil: null });
+    $('al-label').value = ''; save(); render(); toast(`${time} 알람을 맞췄어요`);
+  };
+
+  function trigger(a) {
+    const mins = parseInt(snoozeSel.value) || 5;
+    fire({
+      title: a.time, msg: a.label || '알람', snoozeText: `스누즈 ${mins}분`, dismissText: '끄기',
+      onSnooze: () => { a.snoozeUntil = Date.now() + mins * 60000; save(); render(); toast(`${mins}분 뒤에 다시 울려요`); },
+      onDismiss: () => { a.snoozeUntil = null; if (!a.repeat) a.on = false; save(); render(); }
+    });
+  }
+
+  function check() {
+    const d = new Date(), hm = pad(d.getHours()) + ':' + pad(d.getMinutes()), day = d.toDateString() + hm;
+    $('al-now').textContent = `지금은 ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    alarms.forEach(a => {
+      if (!a.on) return;
+      if (a.snoozeUntil && Date.now() >= a.snoozeUntil) { a.snoozeUntil = null; save(); trigger(a); return; }
+      if (a.time === hm && a.last !== day && !a.snoozeUntil) { a.last = day; save(); trigger(a); }
+    });
+  }
+  render(); check(); setInterval(check, 500);
+})();
+</script>
+</body>
+</html>
