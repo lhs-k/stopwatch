@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PPT 스킬 30초 가이드</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #1a1a1a; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif; }
+  #frame { position: relative; overflow: hidden; border-radius: 14px; background: #fff; box-shadow: 0 10px 40px rgba(0,0,0,.4); cursor: pointer; }
+  #stage { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; transform-origin: 0 0; overflow: hidden;
+    --ground:#FFFFFF; --main:#7823DC; --second:#1A1A1A; --accent:#C9A7F5; color:var(--second);
+    --sans: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+    --mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    font-family: var(--sans); }
+  .scene { position: absolute; inset: 0; display: none; }
+  #bar { display: flex; align-items: center; gap: 10px; color: #eee; font-size: 14px; }
+  #bar button { background: #7823DC; color: #fff; border: 0; border-radius: 999px; padding: 8px 18px; font: inherit; font-weight: 700; cursor: pointer; }
+  #seek { width: 240px; accent-color: #7823DC; }
+
+  /* ---- film styles ---- */
+  .ground { position:absolute; inset:0; background:var(--ground) }
+  .words { position:absolute; margin:0; display:flex; flex-direction:column; gap:20px } .words > * { margin:0 }
+  .line { font-family:var(--sans); font-size:112px; line-height:1.12; font-weight:800; letter-spacing:-0.02em } .sub { font-size:44px; font-weight:600 }
+  #stage { --tint:color-mix(in srgb, var(--main) 7%, var(--ground)); --wash:color-mix(in srgb, var(--accent) 35%, var(--ground)); --rule:color-mix(in srgb, var(--second) 14%, var(--ground)); --mute:color-mix(in srgb, var(--second) 62%, var(--ground)); --deep:color-mix(in srgb, var(--main) 78%, var(--second)); --paper:color-mix(in srgb, var(--ground) 96%, var(--second)) }
+  .dots { position:absolute; inset:0; background-color:var(--tint); background-image:radial-gradient(circle, color-mix(in srgb, var(--main) 16%, transparent) 2.5px, transparent 3px); background-size:54px 54px }
+  .art { position:absolute; inset:0; width:100%; height:100%; overflow:visible }
+  .cam { position:absolute; inset:0; transform-origin:540px 760px }
+  .chip { display:inline-flex; align-self:flex-start; padding:12px 28px; border-radius:999px; background:var(--main); color:var(--ground); font-size:38px; font-weight:800 }
+  .ink { color:var(--main) }
+  .uline { position:absolute; height:16px; border-radius:8px; background:var(--accent); transform-origin:0 50% }
+  .label { position:absolute; font-size:34px; font-weight:700; color:var(--second); white-space:nowrap }
+  .mono { font-family:var(--mono) }
+  .bubble { position:absolute; padding:30px 40px; border-radius:40px 40px 10px 40px; background:var(--main); color:var(--ground); font-size:50px; font-weight:700; max-width:760px }
+  .row { display:flex; align-items:center; gap:28px; font-size:52px; font-weight:800 } .row small { display:block; font-size:34px; font-weight:600; color:var(--mute); margin-top:6px }
+  .num { flex:none; width:96px; height:96px; border-radius:50%; background:var(--main); color:var(--ground); display:flex; align-items:center; justify-content:center; font-size:50px; font-weight:800 }
+  .tfw { display:inline-block; white-space:pre }
+</style>
+</head>
+<body>
+<div id="frame"><div id="stage"></div></div>
+<div id="bar"><button id="play">일시정지</button><input id="seek" type="range" min="0" max="30" step="0.01" value="0"><span id="time">0.0s / 30s</span></div>
+
+<script>
+// ---------- a tiny player: every frame is a pure function of t ----------
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const K = {
+  seg: (t, a, b) => clamp01((t - a) / (b - a)),
+  lerp: (a, b, p) => a + (b - a) * p,
+  eo: (x) => 1 - Math.pow(1 - x, 3),
+  eio: (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2),
+  eob: (x, o = 1.4) => { const c3 = o + 1; return 1 + c3 * Math.pow(x - 1, 3) + o * Math.pow(x - 1, 2); },
+  h(html) { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstElementChild; },
+  TextFx: {
+    fadeFromRight(el, t, t0, o = {}) {
+      const stagger = o.stagger ?? 0.11, dur = o.dur ?? 0.45, dx = o.dx ?? 30;
+      if (!el._words) {
+        const words = el.textContent.split(' ');
+        el.textContent = '';
+        el._words = words.map((w, i) => { const s = document.createElement('span'); s.className = 'tfw'; s.textContent = w + (i < words.length - 1 ? ' ' : ''); el.append(s); return s; });
+      }
+      el._words.forEach((s, i) => { const p = clamp01((t - t0 - i * stagger) / dur), e = K.eo(p); s.style.opacity = e.toFixed(3); s.style.transform = 'translateX(' + (dx * (1 - e)).toFixed(1) + 'px)'; });
+    },
+  },
+};
+const SCENES = [];
+function defineScene(id, dur, build) { SCENES.push({ id, dur, build }); }
+
+// ---------- the world ----------
+window.W = {
+  bg() { return '<div class="ground"><div class="dots"></div></div>'; },
+  slide(cls, filled) {
+    const box = (x, y, w, h, f) => '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="6" style="fill:' + f + '"/>';
+    let body = '';
+    if (filled !== false) {
+      body = '<g class="' + cls + '-body">' + box(34, 150, 216, 240, 'var(--main)') + box(272, 150, 216, 240, 'var(--wash)') + box(510, 150, 216, 240, 'var(--wash)') +
+        [0, 1, 2].map((i) => '<path d="M' + (60 + i * 238) + ' 300 h150 M' + (60 + i * 238) + ' 334 h110" style="stroke:' + (i ? 'var(--deep)' : 'var(--ground)') + ';stroke-width:12;stroke-linecap:round;opacity:.75"/>').join('') +
+        '<path d="M80 230 l30 -40 l30 22 l40 -56" style="fill:none;stroke:var(--ground);stroke-width:12;stroke-linecap:round;stroke-linejoin:round"/></g>';
+    }
+    return '<g class="' + cls + '"><rect x="10" y="16" width="760" height="428" rx="18" style="fill:rgba(0,0,0,.10)"/>' +
+      '<rect width="760" height="428" rx="18" style="fill:var(--ground);stroke:var(--rule);stroke-width:3"/>' +
+      '<g class="' + cls + '-head">' + box(34, 38, 560, 40, 'var(--main)') + '</g>' +
+      '<g class="' + cls + '-gov">' + box(34, 96, 420, 18, 'var(--accent)') + '</g>' + body + '</g>';
+  },
+  folderBack(cls) {
+    return '<g class="' + cls + '"><path d="M-300 -260 h200 l40 46 h360 a20 20 0 0 1 20 20 v420 a20 20 0 0 1 -20 20 h-580 a20 20 0 0 1 -20 -20 v-466 a20 20 0 0 1 20 -20 z" style="fill:var(--deep)"/></g>';
+  },
+  folderFront(cls) {
+    return '<g class="' + cls + '"><path d="M-320 -330 h640 v310 a20 20 0 0 1 -20 20 h-600 a20 20 0 0 1 -20 -20 z" style="fill:var(--main)"/><path d="M-320 -330 h640 v24 h-640 z" style="fill:var(--accent);opacity:.55"/></g>';
+  },
+  paper(cls) {
+    const ln = (y, w, c) => '<path d="M48 ' + y + ' h' + w + '" style="stroke:' + c + ';stroke-width:14;stroke-linecap:round"/>';
+    return '<g class="' + cls + '"><rect x="8" y="12" width="440" height="560" rx="16" style="fill:rgba(0,0,0,.10)"/><path d="M0 16 a16 16 0 0 1 16 -16 h330 l94 94 v450 a16 16 0 0 1 -16 16 h-408 a16 16 0 0 1 -16 -16 z" style="fill:var(--paper);stroke:var(--rule);stroke-width:3"/><path d="M346 0 v78 a16 16 0 0 0 16 16 h78" style="fill:var(--wash)"/>' +
+      '<rect x="36" y="118" width="368" height="130" rx="12" style="fill:var(--tint)"/>' + ln(300, 300, 'var(--rule)') + ln(344, 250, 'var(--rule)') + ln(388, 320, 'var(--rule)') + ln(432, 210, 'var(--rule)') + ln(476, 280, 'var(--rule)') + '</g>';
+  },
+  check(cls) {
+    return '<g class="' + cls + '"><circle r="40" style="fill:var(--main)"/><path d="M-18 2 l12 13 l24 -28" style="fill:none;stroke:var(--ground);stroke-width:9;stroke-linecap:round;stroke-linejoin:round"/></g>';
+  },
+};
+const { seg, eo, eio, eob, lerp, TextFx } = K;
+const chipIn = (el, t) => { const c = eo(seg(t, 0, 0.4)); el.style.opacity = c; el.style.transform = 'translateY(' + (20 * (1 - c)).toFixed(1) + 'px)'; };
+const growHead = (el, p) => el.setAttribute('transform', 'translate(34 0) scale(' + p.toFixed(3) + ' 1) translate(-34 0)');
+
+// ---------- 1. hook ----------
+defineScene('hook', 4, (root) => {
+  const tilt = [[-7, 150, 930], [5, 190, 880], [0, 160, 820]];
+  root.append(K.h('<div>' + W.bg() + '<div class="cam hook-cam">' +
+    '<svg class="art" viewBox="0 0 1080 1920"><g class="hook-s0">' + W.slide('hook-b0', false) + '</g><g class="hook-s1">' + W.slide('hook-b1', false) + '</g><g class="hook-s2">' + W.slide('hook-front') + '</g></svg>' +
+    '<div class="words" style="left:90px;top:290px;width:920px"><h2 class="line hook-l1" style="font-size:100px">PPT 장표,</h2><h2 class="line hook-l2" style="font-size:100px">매번 처음부터?</h2><p class="chip hook-chip" style="font-size:46px;margin-top:18px">스킬 하나면 끝</p></div></div></div>'));
+  const q = (s) => root.querySelector(s);
+  const s = [q('.hook-s0'), q('.hook-s1'), q('.hook-s2')], cam = q('.hook-cam'), l1 = q('.hook-l1'), l2 = q('.hook-l2'), chip = q('.hook-chip'),
+    head = q('.hook-front-head'), gov = q('.hook-front-gov'), body = q('.hook-front-body');
+  return (t) => {
+    cam.style.transform = 'scale(' + lerp(1, 1.03, eio(seg(t, 0, 4))) + ')';
+    TextFx.fadeFromRight(l1, t, -0.5); TextFx.fadeFromRight(l2, t, 0.35);
+    const c = seg(t, 1.8, 2.3); chip.style.opacity = eo(c); chip.style.transform = 'scale(' + lerp(0.6, 1, eob(c, 1.7)) + ')';
+    const settle = eio(seg(t, 1.9, 2.6));
+    s.forEach((g, i) => {
+      const [r, x, y] = tilt[i], wob = Math.sin(t * 2.2 + i * 1.7) * 1.2 * (1 - settle), rr = lerp(r, i === 2 ? 0 : r * 0.4, settle) + wob;
+      g.setAttribute('transform', 'translate(' + (x + 380) + ' ' + (y + 214 - (i === 2 ? 12 * settle : 0)) + ') rotate(' + rr.toFixed(2) + ') translate(-380 -214)');
+    });
+    growHead(head, eo(seg(t, 2.2, 2.8))); gov.style.opacity = eo(seg(t, 2.5, 3.0));
+    const b = eo(seg(t, 2.8, 3.4)); body.style.opacity = b; body.setAttribute('transform', 'translate(0 ' + (20 * (1 - b)).toFixed(1) + ')');
+  };
+});
+
+// ---------- 2. what ----------
+defineScene('what', 5, (root) => {
+  root.append(K.h('<div>' + W.bg() + '<div class="cam what-cam">' +
+    '<svg class="art" viewBox="0 0 1080 1920"><g transform="translate(540 1000)">' + W.folderBack('what-back') + '</g></svg>' +
+    '<div class="what-paper" style="position:absolute;left:320px;top:660px;width:440px;height:560px">' +
+      '<svg viewBox="0 0 440 560" style="position:absolute;inset:0;width:440px;height:560px;overflow:visible">' + W.paper('what-sheet') + '</svg>' +
+      '<div class="label mono" style="left:40px;top:30px;font-size:40px;color:var(--main)">SKILL.md</div>' +
+      '<div class="words mono" style="left:52px;top:128px;width:350px;gap:4px;font-size:28px;font-weight:700;line-height:1.3"><p>name: my-ppt</p><p>description:</p><p style="color:var(--main)">언제 쓰는지</p></div></div>' +
+    '<svg class="art" viewBox="0 0 1080 1920"><g class="what-flap" transform="translate(540 1246)">' + W.folderFront('what-front') + '</g></svg>' +
+    '<div class="words" style="left:90px;top:290px;width:920px"><p class="chip what-chip">스킬이란?</p><h2 class="line what-l1" style="font-size:96px">Claude에게 주는</h2><h2 class="line ink what-l2" style="font-size:96px">업무 설명서</h2></div>' +
+    '<div class="uline what-u" style="left:96px;top:624px;width:470px"></div></div></div>'));
+  const q = (s) => root.querySelector(s);
+  const cam = q('.what-cam'), chip = q('.what-chip'), l1 = q('.what-l1'), l2 = q('.what-l2'), u = q('.what-u'), paper = q('.what-paper'), flap = q('.what-flap');
+  return (t) => {
+    cam.style.transform = 'scale(' + lerp(1.0, 1.035, eio(seg(t, 0, 5))) + ')';
+    chipIn(chip, t); TextFx.fadeFromRight(l1, t, 0.3); TextFx.fadeFromRight(l2, t, 0.8);
+    u.style.transform = 'scaleX(' + eio(seg(t, 1.4, 2.0)).toFixed(3) + ')';
+    const open = eio(seg(t, 0.6, 1.3));
+    flap.setAttribute('transform', 'translate(540 1246) skewX(' + (-10 * open).toFixed(2) + ') scale(1 ' + lerp(1, 0.86, open).toFixed(3) + ')');
+    const up = eob(seg(t, 1.1, 2.0), 1.5), bob = Math.sin(t * 2.1) * 6 * seg(t, 2.0, 2.6);
+    paper.style.transform = 'translateY(' + (lerp(330, -10, up) + bob).toFixed(1) + 'px) rotate(' + lerp(-4, 2, up).toFixed(2) + 'deg)';
+  };
+});
+
+// ---------- 3. make ----------
+defineScene('make', 6, (root) => {
+  const rows = [['1', '마음에 드는 장표 캡처', '따라 할 디자인 예시'], ['2', '규칙을 글로 적기', '헤드·거버닝 메시지, 색, 폰트'], ['3', '스킬 폴더에 저장', '.claude/skills/이름/SKILL.md']];
+  root.append(K.h('<div>' + W.bg() + '<div class="cam make-cam">' +
+    '<div class="words" style="left:90px;top:290px;width:900px;gap:58px"><div class="words" style="position:relative;gap:18px"><p class="chip make-chip">PPT 스킬 만드는 법</p></div>' +
+    rows.map((r) => '<div class="row make-row"><div class="num">' + r[0] + '</div><div><span>' + r[1] + '</span><small' + (r[0] === '3' ? ' class="mono" style="color:var(--main)"' : '') + '>' + r[2] + '</small></div></div>').join('') + '</div>' +
+    '<svg class="art" viewBox="0 0 1080 1920"><g class="make-mini" transform="translate(560 1010) scale(0.5)">' + W.slide('make-slide') + '</g></svg></div></div>'));
+  const q = (s) => root.querySelector(s);
+  const cam = q('.make-cam'), chip = q('.make-chip'), rowsEl = [...root.querySelectorAll('.make-row')], mini = q('.make-mini'),
+    head = q('.make-slide-head'), gov = q('.make-slide-gov'), body = q('.make-slide-body');
+  return (t) => {
+    cam.style.transform = 'scale(' + lerp(1.0, 1.03, eio(seg(t, 0, 6))) + ')';
+    chipIn(chip, t);
+    const starts = [0.5, 1.9, 3.3];
+    rowsEl.forEach((el, i) => {
+      const p = seg(t, starts[i], starts[i] + 0.5), next = i < 2 ? eio(seg(t, starts[i + 1], starts[i + 1] + 0.4)) : 0;
+      el.style.opacity = (eo(p) * lerp(1, 0.55, next)).toFixed(3);
+      el.style.transform = 'translateY(' + (40 * (1 - eo(p))).toFixed(1) + 'px)';
+      el.firstChild.style.transform = 'scale(' + lerp(0.4, 1, eob(p, 1.8)).toFixed(3) + ')';
+    });
+    const m = eob(seg(t, 0.6, 1.2), 1.4);
+    mini.style.opacity = eo(seg(t, 0.6, 1.0));
+    mini.setAttribute('transform', 'translate(560 ' + lerp(1060, 1010, m).toFixed(1) + ') scale(0.5) rotate(' + (Math.sin(t * 1.6) * 1.2).toFixed(2) + ' 380 214)');
+    growHead(head, eo(seg(t, 2.0, 2.6))); gov.style.opacity = eo(seg(t, 2.4, 2.9)); body.style.opacity = eo(seg(t, 3.5, 4.1));
+  };
+});
+
+// ---------- 4. use ----------
+defineScene('use', 5, (root) => {
+  root.append(K.h('<div>' + W.bg() + '<div class="cam use-cam">' +
+    '<div class="words" style="left:90px;top:290px;width:900px"><p class="chip use-chip">쓰는 법</p><h2 class="line use-l1" style="font-size:84px">그냥 말로 부탁</h2></div>' +
+    '<div class="bubble use-bubble" style="right:150px;top:540px">장표 한 장 만들어줘</div>' +
+    '<svg class="art" viewBox="0 0 1080 1920"><g class="use-card">' + W.slide('use-slide') + '</g></svg>' +
+    '<div class="words" style="left:90px;top:1150px;width:900px"><p class="sub use-sub" style="color:var(--mute)">/스킬이름 으로 불러도 OK</p></div></div></div>'));
+  const q = (s) => root.querySelector(s);
+  const cam = q('.use-cam'), chip = q('.use-chip'), l1 = q('.use-l1'), bubble = q('.use-bubble'), card = q('.use-card'), sub = q('.use-sub'),
+    head = q('.use-slide-head'), gov = q('.use-slide-gov'), body = q('.use-slide-body');
+  bubble.style.transformOrigin = '100% 100%';
+  return (t) => {
+    cam.style.transform = 'scale(' + lerp(1.0, 1.03, eio(seg(t, 0, 5))) + ')';
+    chipIn(chip, t); TextFx.fadeFromRight(l1, t, 0.25);
+    const b = seg(t, 0.8, 1.3);
+    bubble.style.opacity = eo(b);
+    bubble.style.transform = 'scale(' + lerp(0.5, 1, eob(b, 1.7)).toFixed(3) + ') translateY(' + (-6 * eio(seg(t, 1.6, 2.2))).toFixed(1) + 'px)';
+    const s = seg(t, 1.7, 2.3);
+    card.style.opacity = eo(s);
+    card.setAttribute('transform', 'translate(160 ' + lerp(780, 700, eob(s, 1.5)).toFixed(1) + ') rotate(' + (Math.sin(t * 1.5) * 0.8).toFixed(2) + ' 380 214)');
+    growHead(head, eo(seg(t, 2.2, 2.7))); gov.style.opacity = eo(seg(t, 2.5, 2.9)); body.style.opacity = eo(seg(t, 2.8, 3.3));
+    const sp = eo(seg(t, 3.3, 3.8)); sub.style.opacity = sp; sub.style.transform = 'translateY(' + (16 * (1 - sp)).toFixed(1) + 'px)';
+  };
+});
+
+// ---------- 5. tips ----------
+defineScene('tips', 6, (root) => {
+  const rows = [['설명은 구체적으로', '언제 쓰는지 description에'], ['규칙은 숫자로', '28pt, 불릿 최대 4개'], ['한 장씩 확인', '미리보기로 글자 넘침 체크']];
+  root.append(K.h('<div>' + W.bg() + '<div class="cam tips-cam">' +
+    '<div class="words" style="left:90px;top:290px;width:900px;gap:64px"><div class="words" style="position:relative;gap:18px"><p class="chip tips-chip">주의할 점</p></div>' +
+    rows.map((r) => '<div class="row tips-row"><svg width="96" height="96" viewBox="-48 -48 96 96" style="flex:none;overflow:visible">' + W.check('tips-check') + '</svg><div><span>' + r[0] + '</span><small>' + r[1] + '</small></div></div>').join('') +
+    '</div></div></div>'));
+  const cam = root.querySelector('.tips-cam'), chip = root.querySelector('.tips-chip'), rowsEl = [...root.querySelectorAll('.tips-row')], marks = [...root.querySelectorAll('.tips-check')];
+  return (t) => {
+    cam.style.transform = 'scale(' + lerp(1.0, 1.03, eio(seg(t, 0, 6))) + ')';
+    chipIn(chip, t);
+    [0.5, 2.0, 3.5].forEach((st, i) => {
+      const p = eo(seg(t, st, st + 0.5));
+      rowsEl[i].style.opacity = p.toFixed(3);
+      rowsEl[i].style.transform = 'translateX(' + (40 * (1 - p)).toFixed(1) + 'px)';
+      const k = seg(t, st + 0.35, st + 0.8);
+      marks[i].setAttribute('transform', 'scale(' + Math.max(0, eob(k, 1.9)).toFixed(3) + ') rotate(' + lerp(-30, 0, eo(k)).toFixed(1) + ')');
+    });
+  };
+});
+
+// ---------- 6. end ----------
+defineScene('end', 4, (root) => {
+  root.append(K.h('<div>' + W.bg() + '<div class="cam end-cam">' +
+    '<svg class="art" viewBox="0 0 1080 1920"><g transform="translate(200 800) rotate(-6 380 214)" style="opacity:.45">' + W.slide('end-b') + '</g><g class="end-card">' + W.slide('end-slide') + '</g></svg>' +
+    '<div class="words" style="left:90px;top:300px;width:920px"><h2 class="line end-l1" style="font-size:104px">오늘,</h2><h2 class="line ink end-l2" style="font-size:104px">내 스킬 하나</h2><p class="sub end-sub" style="color:var(--mute);margin-top:10px">저장해 두고 매번 꺼내 쓰기</p></div></div></div>'));
+  const q = (s) => root.querySelector(s);
+  const cam = q('.end-cam'), l1 = q('.end-l1'), l2 = q('.end-l2'), sub = q('.end-sub'), card = q('.end-card');
+  return (t) => {
+    cam.style.transform = 'scale(' + lerp(1.0, 1.025, eio(seg(t, 0, 4))) + ')';
+    TextFx.fadeFromRight(l1, t, 0.0); TextFx.fadeFromRight(l2, t, 0.3);
+    sub.style.opacity = eo(seg(t, 0.9, 1.4));
+    const s = eob(seg(t, 0.3, 0.9), 1.5), f = Math.sin(t * 1.4) * 8;
+    card.style.opacity = eo(seg(t, 0.3, 0.6));
+    card.setAttribute('transform', 'translate(150 ' + (lerp(900, 760, s) + f).toFixed(1) + ') rotate(' + lerp(4, 2, s).toFixed(2) + ' 380 214)');
+  };
+});
+
+// ---------- playback ----------
+const stage = document.getElementById('stage'), frame = document.getElementById('frame');
+let start = 0;
+const cut = SCENES.map((s) => { const el = document.createElement('div'); el.className = 'scene'; stage.append(el); const render = s.build(el); const c = { el, render, start, dur: s.dur }; start += s.dur; return c; });
+const TOTAL = start;
+function draw(t) {
+  let cur = cut.find((c) => t < c.start + c.dur) || cut[cut.length - 1];
+  cut.forEach((c) => { c.el.style.display = c === cur ? 'block' : 'none'; });
+  cur.render(t - cur.start);
+}
+function fit() {
+  const s = Math.min((innerHeight - 90) / 1920, (innerWidth - 32) / 1080);
+  stage.style.transform = 'scale(' + s + ')';
+  frame.style.width = 1080 * s + 'px'; frame.style.height = 1920 * s + 'px';
+}
+addEventListener('resize', fit); fit();
+
+const btn = document.getElementById('play'), seek = document.getElementById('seek'), label = document.getElementById('time');
+let playing = true, t = 0, last = performance.now();
+function setPlaying(p) { playing = p; btn.textContent = p ? '일시정지' : '재생'; last = performance.now(); }
+btn.onclick = () => setPlaying(!playing);
+frame.onclick = () => setPlaying(!playing);
+seek.oninput = () => { t = +seek.value; draw(t); };
+function tick(now) {
+  if (playing) { t += (now - last) / 1000; if (t >= TOTAL) t = 0; }
+  last = now;
+  draw(t);
+  seek.value = t; label.textContent = t.toFixed(1) + 's / ' + TOTAL + 's';
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
